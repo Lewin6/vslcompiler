@@ -350,6 +350,9 @@ namespace {
 		std::vector<std::unique_ptr<StatAST>> Stats;
 
 	public:
+		std::vector<std::unique_ptr<StatAST>> getStats() {
+			return std::move(Stats);
+		}
 		BlockAST(std::vector<std::unique_ptr<DeclAST>> Decls,
 			std::vector<std::unique_ptr<StatAST>> Stats)
 			:Decls(std::move(Decls)), Stats(std::move(Stats)) {}
@@ -868,7 +871,7 @@ Value *LogErrorV(const char *Str) {
 }
 
 Value *NumberExprAST::codegen() {
-	return ConstantInt::get(TheContext, APInt(64, Val, true)); APFloat((float)Val);
+	return ConstantFP::get(TheContext, APFloat( (float)Val)); 
 }
 
 Value *VariableExprAST::codegen() {
@@ -977,6 +980,7 @@ Value * NullStatAST::codegen()
 	return nullptr;
 }
 
+//TODO:
 Value * ReturnStatAST::codegen()
 {
 	return nullptr;
@@ -984,24 +988,41 @@ Value * ReturnStatAST::codegen()
 
 Value * AssignStatAST::codegen()
 {
+	if (Value *RetVal = Exp->codegen()) {
+		return Builder.CreateFAdd(llvm::make_unique<NumberExprAST>(0)->codegen(), RetVal, Name);
+	}
 	return nullptr;
 }
 
+//TODO:
 Value * IfStatAST::codegen()
 {
 	return nullptr;
 }
 
+//TODO:
 Value * WhileStatAST::codegen()
 {
 	return nullptr;
 }
 
+
 Value * BlockAST::codegen()
 {
-	return nullptr;
+	std::vector<std::unique_ptr<StatAST>> Stats = this->getStats();
+	for (int i = 0; i < Stats.size(); i++) {
+		if (Value* RetVal = Stats.at(i)->codegen()) {
+			return RetVal;
+		}
+		else {
+			return false;
+		}
+	}
+	return Builder.CreateFAdd(llvm::make_unique<NumberExprAST>(0)->codegen(), llvm::make_unique<NumberExprAST>(0)->codegen(), "%success");
+
 }
 
+//TODO:
 Value * PrintStatAST::codegen()
 {
 	return nullptr;
