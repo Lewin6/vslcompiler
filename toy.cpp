@@ -1,10 +1,10 @@
-#include "../include/KaleidoscopeJIT.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -13,9 +13,9 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
-#include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
+#include "../include/KaleidoscopeJIT.h"
 #include <algorithm>
 #include <cassert>
 #include <cctype>
@@ -29,6 +29,7 @@
 
 
 using namespace llvm;
+using namespace llvm::orc;
 
 //===----------------------------------------------------------------------===//
 // Lexer
@@ -931,9 +932,9 @@ Value *CallExprAST::codegen() {
 
 Function *PrototypeAST::codegen() {
 	// Make the function type:  double(double,double) etc.
-	std::vector<Type *> Doubles(Args.size(), Type::getDoubleTy(TheContext));
+	std::vector<Type *> Ints(Args.size(), Type::getInt64Ty(TheContext));
 	FunctionType *FT =
-		FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
+		FunctionType::get(Type::getInt64Ty(TheContext), Ints, false);
 
 	Function *F =
 		Function::Create(FT, Function::ExternalLinkage, Name, TheModule.get());
@@ -987,6 +988,7 @@ Function *FunctionAST::codegen() {
 		// Error reading body, remove function.
 		TheFunction->eraseFromParent();
 		return nullptr;
+	}
 }
 
 	
@@ -1188,7 +1190,6 @@ static void HandleFuncDefinition() {
 static void HandleFUNC() {
 	if (auto ProtoAST = ParseFUNC()) {
 		fprintf(stderr, "Parsed an FUNC\n");
-		FnIR->print(errs());
 		fprintf(stderr, "\n");
 		FunctionProtos[ProtoAST->getName()] = std::move(ProtoAST);
 	}
