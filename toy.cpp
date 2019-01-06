@@ -68,8 +68,8 @@ static std::string IdentifierStr; //存储变量名 Filled in if VARIABLE
 static int NumVal;                //存储数字 Filled in if INTERGER
 static std::string TextStr;       //存储text Filled in if TEXT
 
-// gettok - Return the next token from standard input.
-// gettok - 从标准输入中获取下一个字符
+								  // gettok - Return the next token from standard input.
+								  // gettok - 从标准输入中获取下一个字符
 static int gettok() {
 	static int LastChar = ' ';
 
@@ -128,13 +128,12 @@ static int gettok() {
 		return INTEGER;
 	}
 
-	// TEXT 文本
+	
 	if (LastChar == '/') {
 		LastChar = getchar();
 		if (LastChar == '/') {
 			do {
 				LastChar = getchar();
-				TextStr += LastChar;
 			} while (LastChar != EOF && LastChar != '\n' && LastChar != '\r');
 			if (LastChar != EOF)
 				return gettok();
@@ -152,12 +151,12 @@ static int gettok() {
 		return ERROR;
 	}
 	// Check for end of file.  Don't eat the EOF. 检查是否为文件尾
+	// TEXT 文本
 	if (LastChar == '"') {
-		IdentifierStr = LastChar;
+		IdentifierStr = "";
 		while ((LastChar = getchar()) != '"') {
 			IdentifierStr += LastChar;
 		}
-		IdentifierStr += LastChar;
 		LastChar = getchar();
 		return TEXT;
 	}
@@ -626,7 +625,7 @@ static std::unique_ptr<StatAST> ParsePrintStat() {
 	std::vector<std::unique_ptr<PrintItemAST>> Items; //存储要打印的项集
 	do {
 		if (getNextToken() == TEXT) {
-			Items.push_back(llvm::make_unique<TextPrintItemAST>(TextStr));
+			Items.push_back(llvm::make_unique<TextPrintItemAST>(IdentifierStr));
 			getNextToken();
 		}
 		else {
@@ -841,7 +840,7 @@ static std::unique_ptr<FunctionAST> ParseTopLevelExpr() {
 static LLVMContext TheContext;
 static IRBuilder<> Builder(TheContext);
 static std::unique_ptr<Module> TheModule;
-//static std::unique_ptr<legacy::FunctionPassManager> TheFPM;
+static std::unique_ptr<legacy::FunctionPassManager> TheFPM;
 static std::unique_ptr<KaleidoscopeJIT> TheJIT;
 static std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
 static std::map<std::string, AllocaInst *> NamedValues;
@@ -956,8 +955,8 @@ Value *CallExprAST::codegen() {
 		if (!ArgsV.back())
 			return nullptr;
 	}
-
-	return Builder.CreateCall(CalleeF, ArgsV, "calltmp");
+	Value *mm = Builder.CreateCall(CalleeF, ArgsV, "calltmp");
+	return mm;
 }
 
 Function *PrototypeAST::codegen() {
@@ -1163,9 +1162,9 @@ Value *BlockAST::codegen() {
 		if (decl->codegen() == nullptr)
 			return LogErrorV("declaration error");
 	}
-	for (auto &stat :Stats) {
-		if (Value *RetVal = stat->codegen()) {
-			if (stat->isRet()) {
+	for (int i = 0; i < Stats.size()-1;i++) {
+		if (Value *RetVal = Stats.at(i)->codegen()) {
+			if (Stats.at(i)->isRet()) {
 				r = true;
 			}
 		}
@@ -1173,19 +1172,43 @@ Value *BlockAST::codegen() {
 			return LogErrorV("statement error");
 		}
 	}
-	return Builder.getInt32(0);
+	return Stats.at(Stats.size() - 1)->codegen();
 }
 
+///Moudle初始化
+static void InitializeModuleAndPassManager() {
+	// Open a new module.
+	TheModule = llvm::make_unique<Module>("my cool jit", TheContext);
+	TheModule->setDataLayout(TheJIT->getTargetMachine().createDataLayout());
+	// Create a new pass manager attached to it.
+	// Create a new pass manager attached to it.
+	TheFPM = llvm::make_unique<legacy::FunctionPassManager>(TheModule.get());
+
+	// Promote allocas to registers.
+	/*TheFPM->add(createPromoteMemoryToRegisterPass());*/
+	// Do simple "peephole" optimizations and bit-twiddling optzns.
+	TheFPM->add(createInstructionCombiningPass());
+	// Reassociate expressions.
+	TheFPM->add(createReassociatePass());
+	// Eliminate Common SubExpressions.
+	TheFPM->add(createGVNPass());
+	// Simplify the control flow graph (deleting unreachable blocks, etc).
+	TheFPM->add(createCFGSimplificationPass());
+
+	TheFPM->doInitialization();
+}
 
 ///print相关↓
 static std::vector<llvm::Value *> paramArrayRef;	//用于存储打印项
 static Function *printFunc;							//打印函数
+static std::vector<std::unique_ptr<ExprAST>> explist;			//用于存储表达式类型的打印项
+static std::string strlist;							//用于存储TEXT类型的打印项
 
 //声明printf函数
 static void DeclarePrintfFunc()
 {
 	std::vector<llvm::Type *> printf_arg_types;
-	printf_arg_types.push_back(Builder.getInt8Ty()->getPointerTo());
+	printf_arg_types.push_back(Builder.getInt8Ty()->getPointerTo());//PointerType::get(Type::getInt8Ty(TheContext), 0)
 	FunctionType *printType = FunctionType::get(
 		IntegerType::getInt32Ty(TheContext), printf_arg_types, true);
 	printFunc = llvm::Function::Create(printType, llvm::Function::ExternalLinkage,
@@ -1194,33 +1217,44 @@ static void DeclarePrintfFunc()
 
 	std::vector<std::string> ArgNames;
 	FunctionProtos["printf"] = std::move(llvm::make_unique<PrototypeAST>("printf", std::move(ArgNames)));
+
 }
 
 Value *TextPrintItemAST::codegen()
 {
-	paramArrayRef.push_back(Builder.CreateGlobalStringPtr(Text.c_str()));
+	strlist += Text.c_str();
+	
 	return Builder.getInt32(0);
 }
 
 Value *ExpPrintItemAST::codegen()
 {
-	paramArrayRef.push_back(Exp->codegen());
+	std::string a = "%d";
+	strlist += a;
+	explist.push_back(std::move(Exp));
 	return Builder.getInt32(0);
 }
 
 Value *PrintStatAST::codegen() {
+	DeclarePrintfFunc();
 	paramArrayRef.clear();
-
+	explist.clear();
+	strlist = "";
+	Function *TheFunction = Builder.GetInsertBlock()->getParent();
 	if (Items.size() == 0)
 		return nullptr;
 	else {
-		Builder.GetInsertBlock()->getParent();
+		
 		for (int i = 0; i < Items.size(); i++) {
 			Items[i]->codegen();
 		}
 	}
+	paramArrayRef.push_back(Builder.CreateGlobalStringPtr(strlist.c_str()));
+	for (int i = 0; i < explist.size(); i++) {
+		paramArrayRef.push_back(explist.at(i)->codegen());
+	}
 
-	Builder.CreateCall(printFunc, paramArrayRef);
+	Builder.CreateCall(printFunc, paramArrayRef,"printcall");
 	Value *num = Builder.getInt32(0);//print always return 0
 	return num;
 }
@@ -1229,25 +1263,7 @@ Value *PrintStatAST::codegen() {
 // Top-Level parsing
 //===----------------------------------------------------------------------===//
 
-///Moudle初始化
-static void InitializeModuleAndPassManager() {
-	// Open a new module.
-	TheModule = llvm::make_unique<Module>("my cool jit", TheContext);
-	TheModule->setDataLayout(TheJIT->getTargetMachine().createDataLayout());
-	// Create a new pass manager attached to it.
-	//TheFPM = llvm::make_unique<legacy::FunctionPassManager>(TheModule.get());
-	// Promote allocas to registers.
-	//TheFPM->add(createPromoteMemoryToRegisterPass());
-	// Do simple "peephole" optimizations and bit-twiddling optzns.
-	//TheFPM->add(createInstructionCombiningPass());
-	// Reassociate expressions.
-	//TheFPM->add(createReassociatePass());
-	// Eliminate Common SubExpressions.
-	//TheFPM->add(createGVNPass());
-	// Simplify the control flow graph (deleting unreachable blocks, etc).
-	//TheFPM->add(createCFGSimplificationPass());
-	//TheFPM->doInitialization();
-}
+
 
 /// 处理函数定义FUNC VARIABLE'('VARIABLE_LIST')'
 static void HandleFuncDefinition() {
@@ -1256,6 +1272,8 @@ static void HandleFuncDefinition() {
 			fprintf(stderr, "Read function definition:");
 			FnIR->print(errs());
 			fprintf(stderr, "\n");
+			TheJIT->addModule(std::move(TheModule));
+			InitializeModuleAndPassManager();
 		}
 	}
 	else {
@@ -1276,7 +1294,7 @@ static void HandleTopLevelExpression() {
 			// JIT the module containing the anonymous expression, keeping a handle so
 			// we can free it later.
 			auto H = TheJIT->addModule(std::move(TheModule));
-			//InitializeModuleAndPassManager();
+			InitializeModuleAndPassManager();
 
 			// Search the JIT for the __anon_expr symbol.
 			auto ExprSymbol = TheJIT->findSymbol("__anon_expr");
@@ -1284,7 +1302,7 @@ static void HandleTopLevelExpression() {
 
 			// Get the symbol's address and cast it to the right type (takes no
 			// arguments, returns a double) so we can call it as a native function.
-			int (*i)() =
+			int(*i)() =
 				(int(*)())(intptr_t)cantFail(ExprSymbol.getAddress());
 			fprintf(stderr, "Evaluated to %d\n", i());
 
@@ -1345,7 +1363,7 @@ extern "C" DLLEXPORT int printd(int X) {
 // Main driver code.
 //===----------------------------------------------------------------------===//
 int main() {
-	
+
 	InitializeNativeTarget();
 	InitializeNativeTargetAsmPrinter();
 	InitializeNativeTargetAsmParser();
@@ -1430,3 +1448,6 @@ int main() {
 
 	return 0;
 }
+
+
+
