@@ -14,11 +14,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
-<<<<<<< HEAD
-#include "llvm/Transforms/InstCombine/InstCombine.h"
-=======
 #include "llvm/Support/TargetRegistry.h"
->>>>>>> 16b48486c59db9f7ab4287b3b29c36cabb7752ab
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
 #include <algorithm>
@@ -33,11 +29,7 @@
 #include <vector>
 
 using namespace llvm;
-<<<<<<< HEAD
-
-=======
 using namespace llvm::orc;
->>>>>>> 16b48486c59db9f7ab4287b3b29c36cabb7752ab
 //===----------------------------------------------------------------------===//
 // Lexer
 // 词法分析器部分
@@ -173,7 +165,7 @@ static int gettok() {
 			if (LastChar != EOF)
 				return gettok();
 		}
-		return ERROR;
+		return '/';
 	}
 
 	// ASSIGN_SYMBOL 赋值符号
@@ -657,7 +649,7 @@ static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec,
 		// Okay, we know this is a binop.
 		int BinOp = CurTok;
 		getNextToken(); // eat binop
-		yufa.push_back(space);
+		//yufa.push_back(space);
 						// Parse the primary expression after the binary operator.
 		auto RHS = ParsePrimary();
 		if (!RHS)
@@ -667,7 +659,7 @@ static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec,
 		// the pending operator take RHS as its LHS.
 		int NextPrec = GetTokPrecedence();
 		if (TokPrec < NextPrec) {
-			yufa.push_back(space);
+			//yufa.push_back(space);
 			RHS = ParseBinOpRHS(TokPrec + 1, std::move(RHS));
 			if (!RHS)
 				return nullptr;
@@ -940,6 +932,7 @@ static std::unique_ptr<PrototypeAST> ParsePrototype() {
 
 /// definition ::= 'def' prototype expression
 static std::unique_ptr<FunctionAST> ParseFuncDefinition() {
+	space = "";
 	yufa.push_back(space + "FuncDefinition_Statement:\n");
 	space += " ";
 	yufa.push_back(space);
@@ -1070,7 +1063,7 @@ Value *BinaryExprAST::codegen() {
 	case '*':
 		return Builder.CreateMul(L, R, "multmp");
 	case '/':
-		return Builder.CreateExactSDiv(L, R, "divtmp");
+		return Builder.CreateUDiv(L, R, "divtmp");
 		// Convert bool 0/1 to double 0.0 or 1.0
 		//return Builder.CreateUIToFP(L, Type::getDoubleTy(TheContext), "booltmp");
 	default:
@@ -1099,12 +1092,6 @@ Value *CallExprAST::codegen() {
 }
 
 Function *PrototypeAST::codegen() {
-<<<<<<< HEAD
-	// Make the function type:  double(double,double) etc.
-	std::vector<Type *> Doubles(Args.size(), Type::getDoubleTy(TheContext));
-	FunctionType *FT =
-		FunctionType::get(Type::getDoubleTy(TheContext), Doubles, false);
-=======
 
 
 	// Make the function type:  int64(int64,int64) etc.
@@ -1115,7 +1102,6 @@ Function *PrototypeAST::codegen() {
 		FunctionType::get(Type::getInt32Ty(TheContext), Ints, false);
 	/*FunctionType *FT =
 	FunctionType::get(Type::getDoubleTy(TheContext), Ints, false);*/
->>>>>>> 16b48486c59db9f7ab4287b3b29c36cabb7752ab
 
 	Function *F =
 		Function::Create(FT, Function::ExternalLinkage, Name, TheModule.get());
@@ -1165,15 +1151,7 @@ Function *FunctionAST::codegen() {
 		//TheFPM->run(*TheFunction);
 
 		return TheFunction;
-<<<<<<< HEAD
-
-		// Error reading body, remove function.
-		TheFunction->eraseFromParent();
-		return nullptr;
-}
-=======
 	}
->>>>>>> 16b48486c59db9f7ab4287b3b29c36cabb7752ab
 
 	// Error reading body, remove function.
 	TheFunction->eraseFromParent();
@@ -1374,25 +1352,11 @@ static void DeclarePrintfFunc()
 
 }
 
-<<<<<<< HEAD
-static void HandleFUNC() {
-	if (auto ProtoAST = ParseFUNC()) {
-		fprintf(stderr, "Parsed an FUNC\n");
-		FnIR->print(errs());
-		fprintf(stderr, "\n");
-		FunctionProtos[ProtoAST->getName()] = std::move(ProtoAST);
-	}
-	else {
-		// Skip token for error recovery.
-		getNextToken();
-	}
-=======
 Value *TextPrintItemAST::codegen()
 {
 	strlist += Text.c_str();
 	
 	return Builder.getInt32(0);
->>>>>>> 16b48486c59db9f7ab4287b3b29c36cabb7752ab
 }
 
 Value *ExpPrintItemAST::codegen()
@@ -1439,11 +1403,11 @@ static void HandleFuncDefinition() {
       fprintf(stderr, "Read function definition:");
       FnIR->print(errs());
       fprintf(stderr, "\n");
-      //TheJIT->addModule(std::move(TheModule));
-      //InitializeModuleAndPassManager();
+      TheJIT->addModule(std::move(TheModule));
+      InitializeModuleAndPassManager();
     }
   } else {
-    // Skip token for error recovery.
+    // 跳过空格Skip token for error recovery.
     getNextToken();
   }
 }
@@ -1548,6 +1512,7 @@ int main() {
 	BinopPrecedence['+'] = 20;
 	BinopPrecedence['-'] = 20;
 	BinopPrecedence['*'] = 40; // highest.
+	BinopPrecedence['/'] = 40;
 
 							   // Prime the first token.
 	fprintf(stderr, "ready> ");
@@ -1617,7 +1582,7 @@ int main() {
 
 	TheModule->setDataLayout(TheTargetMachine->createDataLayout());
 
-	auto Filename = "output.o";
+	auto Filename = "out.o";
 	std::error_code EC;
 	raw_fd_ostream dest(Filename, EC, sys::fs::F_None);
 
