@@ -67,9 +67,11 @@ enum Token {
 static std::string IdentifierStr; //存储变量名 Filled in if VARIABLE
 static int NumVal;                //存储数字 Filled in if INTERGER
 static std::string TextStr;       //存储text Filled in if TEXT
-
-								  // gettok - Return the next token from standard input.
-								  // gettok - 从标准输入中获取下一个字符
+static std::vector<std::string> cifa;
+static std::vector<std::string> yufa;
+static std::string space;
+// gettok - Return the next token from standard input.
+// gettok - 从标准输入中获取下一个字符
 static int gettok() {
 	static int LastChar = ' ';
 
@@ -90,30 +92,54 @@ static int gettok() {
 		while (isalnum((LastChar = getchar())))
 			IdentifierStr += LastChar;
 
-		if (IdentifierStr == "FUNC")
+		if (IdentifierStr == "FUNC") {
+			cifa.push_back("FUNC--tok_FUNC");
 			return FUNC;
-		if (IdentifierStr == "PRINT")
+		}
+		if (IdentifierStr == "PRINT") {
+			cifa.push_back("PRINT--tok_PRINT");
 			return PRINT;
-		if (IdentifierStr == "RETURN")
+		}
+		if (IdentifierStr == "RETURN") {
+			cifa.push_back("RETURN--tok_RETURN");
 			return RETURN;
-		if (IdentifierStr == "CONTINUE")
+		}
+		if (IdentifierStr == "CONTINUE") {
+			cifa.push_back("CONTINUE--tok_CONTINUE");
 			return CONTINUE;
-		if (IdentifierStr == "IF")
+		}
+		if (IdentifierStr == "IF") {
+			cifa.push_back("IF--tok_IF");
 			return IF;
-		if (IdentifierStr == "THEN")
+		}
+		if (IdentifierStr == "THEN") {
+			cifa.push_back("THEN--tok_THEN");
 			return THEN;
-		if (IdentifierStr == "ELSE")
+		}
+		if (IdentifierStr == "ELSE") {
+			cifa.push_back("ELSE--tok_ELSE");
 			return ELSE;
-		if (IdentifierStr == "FI")
+		}
+		if (IdentifierStr == "FI") {
+			cifa.push_back("FI--tok_FI");
 			return FI;
-		if (IdentifierStr == "WHILE")
+		}
+		if (IdentifierStr == "WHILE") {
+			cifa.push_back("WHILE--tok_WHILE");
 			return WHILE;
-		if (IdentifierStr == "DO")
+		}
+		if (IdentifierStr == "DO") {
+			cifa.push_back("DO--tok_DO");
 			return DO;
-		if (IdentifierStr == "DONE")
+		}
+		if (IdentifierStr == "DONE") {
+			cifa.push_back("DONE--tok_DONE");
 			return DONE;
-		if (IdentifierStr == "VAR")
+		}
+		if (IdentifierStr == "VAR") {
+			cifa.push_back("VAR--tok_VAR");
 			return VAR;
+		}
 	}
 
 	// INTERGER 整数
@@ -123,22 +149,23 @@ static int gettok() {
 			NumStr += LastChar;
 			LastChar = getchar();
 		} while (isdigit(LastChar));
-
+		cifa.push_back(NumStr + "--tok_number");
 		NumVal = atoi(NumStr.c_str());
 		return INTEGER;
 	}
 
-	
+
 	if (LastChar == '/') {
 		LastChar = getchar();
 		if (LastChar == '/') {
 			do {
 				LastChar = getchar();
 			} while (LastChar != EOF && LastChar != '\n' && LastChar != '\r');
+			cifa.push_back("//****--tok_command");
 			if (LastChar != EOF)
 				return gettok();
 		}
-		return ERROR;
+		return '/';
 	}
 
 	// ASSIGN_SYMBOL 赋值符号
@@ -146,6 +173,7 @@ static int gettok() {
 		LastChar = getchar();
 		if (LastChar == '=') {
 			LastChar = getchar();
+			cifa.push_back(":=--tok_ASSIGN");
 			return ASSIGN_SYMBOL;
 		}
 		return ERROR;
@@ -158,6 +186,7 @@ static int gettok() {
 			IdentifierStr += LastChar;
 		}
 		LastChar = getchar();
+		cifa.push_back(IdentifierStr + "--tok_text");
 		return TEXT;
 	}
 	if (LastChar == EOF)
@@ -166,7 +195,9 @@ static int gettok() {
 	// Otherwise, just return the character as its ascii value.
 	// 未知符号返回其ascii码值
 	int ThisChar = LastChar;
+	int i = ThisChar;
 	LastChar = getchar();
+	cifa.push_back(std::to_string(i) + "--tok_of_ascii");
 	return ThisChar;
 }
 
@@ -446,6 +477,7 @@ static std::unique_ptr<ExprAST> ParseExpression();
 
 ///数字 numberexpr ::= number
 static std::unique_ptr<ExprAST> ParseNumberExpr() {
+	yufa.push_back(space + "Number_Statement:\n");
 	auto Result = llvm::make_unique<NumberExprAST>(NumVal);
 	getNextToken(); // consume the number
 	return std::move(Result);
@@ -454,6 +486,10 @@ static std::unique_ptr<ExprAST> ParseNumberExpr() {
 
 ///（表达式） parenexpr ::= '(' expression ')'
 static std::unique_ptr<ExprAST> ParseParenExpr() {
+	yufa.push_back(space + "ParenExpr_Statement:\n");
+	space += " ";
+
+	yufa.push_back(space);
 	getNextToken(); // eat (.
 	auto V = ParseExpression();
 	if (!V)
@@ -462,6 +498,7 @@ static std::unique_ptr<ExprAST> ParseParenExpr() {
 	if (CurTok != ')')
 		return LogError("expected ')'");
 	getNextToken(); // eat ).
+	space = space.substr(0, space.length() - 1);
 	return V;
 }
 
@@ -471,6 +508,8 @@ static std::unique_ptr<ExprAST> ParseParenExpr() {
 ///   ::= identifier
 ///   ::= identifier '(' expression* ')'
 static std::unique_ptr<ExprAST> ParseVariableExpr() {
+	yufa.push_back(space + "Identifier_Statement:\n");
+	space += " ";
 	std::string IdName = IdentifierStr;
 
 	getNextToken(); // eat identifier.
@@ -483,6 +522,7 @@ static std::unique_ptr<ExprAST> ParseVariableExpr() {
 	std::vector<std::unique_ptr<ExprAST>> Args;
 	if (CurTok != ')') {
 		while (true) {
+			yufa.push_back(space);
 			if (auto Arg = ParseExpression())
 				Args.push_back(std::move(Arg));
 			else
@@ -500,18 +540,42 @@ static std::unique_ptr<ExprAST> ParseVariableExpr() {
 
 	// Eat the ')'.
 	getNextToken();
-
+	space = space.substr(0, space.length() - 1);
 	return llvm::make_unique<CallExprAST>(IdName, std::move(Args));
 }
 
 /// expression with '-'
 static std::unique_ptr<ExprAST> ParseNegaExpr() {
-	getNextToken(); // eat -.
-	auto V = ParseExpression();
-	if (!V)
-		return nullptr;
+	//getNextToken(); // eat -.
+	//auto V = ParseExpression();
+	//if (!V)
+	//	return nullptr;
 
-	return V;
+	//return V;
+	yufa.push_back(space + "NegaExpr_Statement:\n");
+	space += " ";
+	auto Result = llvm::make_unique<NumberExprAST>(0);
+	int FuTok = CurTok;
+	getNextToken();
+	switch (CurTok) {
+	default:
+		return LogError("unknown token when expecting an expression");
+	case VARIABLE:
+		yufa.push_back(space);
+		space = space.substr(0, space.length() - 1);
+		return llvm::make_unique<BinaryExprAST>(FuTok, std::move(Result),
+			std::move(ParseVariableExpr()));
+	case INTEGER:
+		yufa.push_back(space);
+		space = space.substr(0, space.length() - 1);
+		return llvm::make_unique<BinaryExprAST>(FuTok, std::move(Result),
+			std::move(ParseNumberExpr()));
+	case '(':
+		yufa.push_back(space);
+		space = space.substr(0, space.length() - 1);
+		return llvm::make_unique<BinaryExprAST>(FuTok, std::move(Result),
+			std::move(ParseParenExpr()));
+	}
 }
 
 
@@ -542,16 +606,26 @@ static std::unique_ptr<DeclExprAST> ParseDecl() {
 ///   ::= NumberExpr
 ///   ::= parenexpr
 static std::unique_ptr<ExprAST> ParsePrimary() {
+	yufa.push_back(space + "Primary_Statement:\n");
+	space += " ";
 	switch (CurTok) {
 	default:
 		return ParseStatment();
 	case VARIABLE:
+		yufa.push_back(space);
+		space = space.substr(0, space.length() - 1);
 		return ParseVariableExpr();
 	case INTEGER:
+		yufa.push_back(space);
+		space = space.substr(0, space.length() - 1);
 		return ParseNumberExpr();
 	case '(':
+		yufa.push_back(space);
+		space = space.substr(0, space.length() - 1);
 		return ParseParenExpr();
 	case '-':
+		yufa.push_back(space);
+		space = space.substr(0, space.length() - 1);
 		return ParseNegaExpr();
 	}
 }
@@ -560,19 +634,22 @@ static std::unique_ptr<ExprAST> ParsePrimary() {
 ///   ::= ('+' primary)*
 static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec,
 	std::unique_ptr<ExprAST> LHS) {
+	yufa.push_back(space + "BinOpRHS_Statement:\n");
+	space += " ";
 	// If this is a binop, find its precedence.
 	while (true) {
 		int TokPrec = GetTokPrecedence();
 
 		// If this is a binop that binds at least as tightly as the current binop,
 		// consume it, otherwise we are done.
-		if (TokPrec < ExprPrec)
+		if (TokPrec < ExprPrec) {
+			space = space.substr(0, space.length() - 1);
 			return LHS;
-
+		}
 		// Okay, we know this is a binop.
 		int BinOp = CurTok;
 		getNextToken(); // eat binop
-
+						//yufa.push_back(space);
 						// Parse the primary expression after the binary operator.
 		auto RHS = ParsePrimary();
 		if (!RHS)
@@ -582,6 +659,7 @@ static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec,
 		// the pending operator take RHS as its LHS.
 		int NextPrec = GetTokPrecedence();
 		if (TokPrec < NextPrec) {
+			//yufa.push_back(space);
 			RHS = ParseBinOpRHS(TokPrec + 1, std::move(RHS));
 			if (!RHS)
 				return nullptr;
@@ -597,16 +675,22 @@ static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec,
 ///   ::= primary binoprhs
 /// 表达式
 static std::unique_ptr<ExprAST> ParseExpression() {
+	yufa.push_back(space + "Expression_Statement:\n");
+	space += " ";
+	yufa.push_back(space);
 	auto LHS = ParsePrimary();
 	if (!LHS)
 		return nullptr;
-
+	yufa.push_back(space);
+	space = space.substr(0, space.length() - 1);
 	return ParseBinOpRHS(0, std::move(LHS));
 }
 
 /// AssignStat:  VARIABLE := expression
 // 赋值语句
 static std::unique_ptr<StatAST> ParseAssignStat() {
+	yufa.push_back(space + "Assignment_Statement:\n");
+	space += " ";
 	std::string Vname = IdentifierStr; //得到变量名
 	getNextToken();                    // eat variable name
 	if (CurTok != ASSIGN_SYMBOL) {
@@ -614,8 +698,11 @@ static std::unique_ptr<StatAST> ParseAssignStat() {
 		return nullptr;
 	}
 	getNextToken();
-	if (auto E = ParseExpression())
+	if (auto E = ParseExpression()) {
+		yufa.push_back(space);
+		space = space.substr(0, space.length() - 1);
 		return llvm::make_unique<AssignStatAST>(Vname, std::move(E));
+	}
 	return nullptr;
 }
 
@@ -639,16 +726,24 @@ static std::unique_ptr<StatAST> ParsePrintStat() {
 // ReturnStat:	RETURN expression
 // return语句
 static std::unique_ptr<StatAST> ParseReturnStat() {
+	yufa.push_back(space + "Return_Statement:\n");
+	space += " ";
 	getNextToken(); // eat RETURN
-	if (auto E = ParseExpression())
+	if (auto E = ParseExpression()) {
+		yufa.push_back(space);
+		space = space.substr(0, space.length() - 1);
 		return llvm::make_unique<ReturnStatAST>(std::move(E));
+	}
 	return nullptr;
 }
 
 // NullStat:		CONTINUE
 // continue 语句
 static std::unique_ptr<StatAST> ParseNullStat() {
+	yufa.push_back(space + "Continue_Statement:\n");
+	space += " ";
 	getNextToken(); // eat CONTINUE
+	space = space.substr(0, space.length() - 1);
 	return llvm::make_unique<NullStatAST>();
 }
 
@@ -656,24 +751,31 @@ static std::unique_ptr<StatAST> ParseNullStat() {
 ///			| IF expression THEN statement
 ///			  ELSE statement FI
 static std::unique_ptr<StatAST> ParseIfStat() {
+	yufa.push_back(space + "If_Statement:\n");
+	space += " ";
 	getNextToken(); // eat IF
+	yufa.push_back(space);
 	if (auto E = ParseExpression()) {
 		if (CurTok != THEN) {
 			LogError("Expected 'THEN'");
 			return nullptr;
 		}
 		getNextToken(); // eat THEN
+		yufa.push_back(space);
 		if (auto tS = ParseStatment()) {
 			// getNextToken();
 			if (CurTok == FI) {
 				getNextToken();
+				space = space.substr(0, space.length() - 1);
 				return llvm::make_unique<IfStatAST>(std::move(E), std::move(tS));
 			}
 			else if (CurTok == ELSE) {
 				getNextToken();
+				yufa.push_back(space);
 				if (auto eS = ParseStatment()) {
 					if (CurTok == FI) {
 						getNextToken();
+						space = space.substr(0, space.length() - 1);
 						return llvm::make_unique<IfStatAST>(std::move(E), std::move(tS),
 							std::move(eS));
 					}
@@ -699,16 +801,21 @@ static std::unique_ptr<StatAST> ParseIfStat() {
 
 /// WhileStat:  WHILE expression DO statement DONE
 static std::unique_ptr<StatAST> ParseWhileStat() {
+	yufa.push_back(space + "While_Statement:\n");
+	space += " ";
 	getNextToken(); // eat WHILE
+	yufa.push_back(space);
 	if (auto E = ParseExpression()) {
 		if (CurTok != DO) {
 			LogError("缺少‘DO’ Expected 'DO'");
 			return nullptr;
 		}
 		getNextToken(); // eat DO
+		yufa.push_back(space);
 		if (auto tS = ParseStatment()) {
 			if (CurTok == DONE) {
 				getNextToken();
+				space = space.substr(0, space.length() - 1);
 				return llvm::make_unique<WhileStatAST>(std::move(E), std::move(tS));
 			}
 			else {
@@ -723,12 +830,15 @@ static std::unique_ptr<StatAST> ParseWhileStat() {
 
 /// BlockStat:	'{' declaration_list statement_list '}'
 static std::unique_ptr<StatAST> ParseBlockStat() {
+	yufa.push_back(space + "Block_Statement:\n");
+	space += " ";
 	getNextToken(); // eat '{'
 	std::vector<std::unique_ptr<DeclExprAST>> Decls;
 	std::vector<std::unique_ptr<StatAST>> Stats;
 	int i = 0;
 	while (CurTok != '}' && i == 0) {
 		if (auto D = ParseDecl()) {
+			yufa.push_back(space);
 			Decls.push_back(std::move(D));
 		}
 		else {
@@ -737,6 +847,7 @@ static std::unique_ptr<StatAST> ParseBlockStat() {
 	}
 	while (CurTok != '}' && i == 1) {
 		if (auto S = ParseStatment()) {
+			yufa.push_back(space);
 			Stats.push_back(std::move(S));
 		}
 		else {
@@ -745,6 +856,7 @@ static std::unique_ptr<StatAST> ParseBlockStat() {
 	}
 	if (CurTok == '}') {
 		getNextToken();
+		space = space.substr(0, space.length() - 1);
 		return llvm::make_unique<BlockAST>(std::move(Decls), std::move(Stats));
 	}
 	else {
@@ -755,22 +867,32 @@ static std::unique_ptr<StatAST> ParseBlockStat() {
 
 ///Statement
 static std::unique_ptr<StatAST> ParseStatment() {
+	yufa.push_back(space + "Statement_Statement:\n");
+	space += " ";
 	switch (CurTok) {
 	case VAR:
+		yufa.push_back(space);
 		return ParseDecl();
 	case VARIABLE:
+		yufa.push_back(space);
 		return ParseAssignStat();
 	case PRINT:
+		yufa.push_back(space);
 		return ParsePrintStat();
 	case RETURN:
+		yufa.push_back(space);
 		return ParseReturnStat();
 	case CONTINUE:
+		yufa.push_back(space);
 		return ParseNullStat();
 	case IF:
+		yufa.push_back(space);
 		return ParseIfStat();
 	case WHILE:
+		yufa.push_back(space);
 		return ParseWhileStat();
 	case '{':
+		yufa.push_back(space);
 		return ParseBlockStat();
 	default:
 		break;
@@ -781,6 +903,7 @@ static std::unique_ptr<StatAST> ParseStatment() {
 /// prototype
 ///   ::= VARIABLE '(' VARIABLE_LIST ')'
 static std::unique_ptr<PrototypeAST> ParsePrototype() {
+	yufa.push_back(space + "Prototype_Statement:\n");
 	if (CurTok != VARIABLE)
 		return LogErrorP("Expected function name in prototype");
 
@@ -809,13 +932,22 @@ static std::unique_ptr<PrototypeAST> ParsePrototype() {
 
 /// definition ::= 'def' prototype expression
 static std::unique_ptr<FunctionAST> ParseFuncDefinition() {
+	space = "";
+	yufa.push_back(space + "FuncDefinition_Statement:\n");
+	space += " ";
+	yufa.push_back(space);
 	getNextToken(); // eat FUNC.
 	auto Proto = ParsePrototype();
-	if (!Proto)
+	if (!Proto) {
+		space = space.substr(0, space.length() - 1);
 		return nullptr;
-
-	if (auto E = ParseStatment())
+	}
+	yufa.push_back(space);
+	if (auto E = ParseStatment()) {
+		space = space.substr(0, space.length() - 1);
 		return llvm::make_unique<FunctionAST>(std::move(Proto), std::move(E));
+	}
+	space = space.substr(0, space.length() - 1);
 	return nullptr;
 }
 
@@ -907,6 +1039,7 @@ Value *DeclExprAST::codegen() {
 
 Value *NumberExprAST::codegen() {
 	return ConstantInt::get(TheContext, APInt(32, Val, true));
+
 }
 
 Value *VariableExprAST::codegen() {
@@ -932,8 +1065,6 @@ Value *BinaryExprAST::codegen() {
 		return Builder.CreateMul(L, R, "multmp");
 	case '/':
 		return Builder.CreateExactSDiv(L, R, "divtmp");
-		// Convert bool 0/1 to double 0.0 or 1.0
-		//return Builder.CreateUIToFP(L, Type::getDoubleTy(TheContext), "booltmp");
 	default:
 		return LogErrorV("invalid binary operator");
 	}
@@ -962,10 +1093,9 @@ Value *CallExprAST::codegen() {
 Function *PrototypeAST::codegen() {
 
 
-	// Make the function type:  int64(int64,int64) etc.
+	// Make the function type:  int32(int32,int32) etc.
 	std::vector<Type *> Ints(Args.size(), Type::getInt32Ty(TheContext));
 	//std::vector<Type *> Doubles(Args.size(), Type::getDoubleTy(TheContext));
-
 	FunctionType *FT =
 		FunctionType::get(Type::getInt32Ty(TheContext), Ints, false);
 	/*FunctionType *FT =
@@ -1016,7 +1146,7 @@ Function *FunctionAST::codegen() {
 		verifyFunction(*TheFunction);
 
 		// Run the optimizer on the function.
-		//TheFPM->run(*TheFunction);
+		TheFPM->run(*TheFunction);
 
 		return TheFunction;
 	}
@@ -1162,7 +1292,10 @@ Value *BlockAST::codegen() {
 		if (decl->codegen() == nullptr)
 			return LogErrorV("declaration error");
 	}
-	for (int i = 0; i < Stats.size()-1;i++) {
+
+	if (Stats.size() == 0)return Builder.getInt32(0);
+
+	for (int i = 0; i < Stats.size() - 1; i++) {
 		if (Value *RetVal = Stats.at(i)->codegen()) {
 			if (Stats.at(i)->isRet()) {
 				r = true;
@@ -1201,7 +1334,7 @@ static void InitializeModuleAndPassManager() {
 ///print相关↓
 static std::vector<llvm::Value *> paramArrayRef;	//用于存储打印项
 static Function *printFunc;							//打印函数
-static std::vector<std::unique_ptr<ExprAST>> explist;			//用于存储表达式类型的打印项
+static std::vector<std::unique_ptr<ExprAST>> explist;//用于存储表达式类型的打印项
 static std::string strlist;							//用于存储TEXT类型的打印项
 
 //声明printf函数
@@ -1209,8 +1342,7 @@ static void DeclarePrintfFunc()
 {
 	std::vector<llvm::Type *> printf_arg_types;
 	printf_arg_types.push_back(Builder.getInt8Ty()->getPointerTo());//PointerType::get(Type::getInt8Ty(TheContext), 0)
-	FunctionType *printType = FunctionType::get(
-		IntegerType::getInt32Ty(TheContext), printf_arg_types, true);
+	FunctionType *printType = FunctionType::get(IntegerType::getInt32Ty(TheContext), printf_arg_types, true);
 	printFunc = llvm::Function::Create(printType, llvm::Function::ExternalLinkage,
 		llvm::Twine("printf"), TheModule.get());
 	printFunc->setCallingConv(llvm::CallingConv::C);
@@ -1223,7 +1355,7 @@ static void DeclarePrintfFunc()
 Value *TextPrintItemAST::codegen()
 {
 	strlist += Text.c_str();
-	
+
 	return Builder.getInt32(0);
 }
 
@@ -1244,7 +1376,7 @@ Value *PrintStatAST::codegen() {
 	if (Items.size() == 0)
 		return nullptr;
 	else {
-		
+
 		for (int i = 0; i < Items.size(); i++) {
 			Items[i]->codegen();
 		}
@@ -1254,7 +1386,7 @@ Value *PrintStatAST::codegen() {
 		paramArrayRef.push_back(explist.at(i)->codegen());
 	}
 
-	Builder.CreateCall(printFunc, paramArrayRef,"printcall");
+	Builder.CreateCall(printFunc, paramArrayRef, "printcall");
 	Value *num = Builder.getInt32(0);//print always return 0
 	return num;
 }
@@ -1264,8 +1396,6 @@ Value *PrintStatAST::codegen() {
 //===----------------------------------------------------------------------===//
 
 
-
-/// 处理函数定义FUNC VARIABLE'('VARIABLE_LIST')'
 static void HandleFuncDefinition() {
 	if (auto FnAST = ParseFuncDefinition()) {
 		if (auto *FnIR = FnAST->codegen()) {
@@ -1277,7 +1407,7 @@ static void HandleFuncDefinition() {
 		}
 	}
 	else {
-		// 跳过空格Skip token for error recovery.
+		// Skip token for error recovery.
 		getNextToken();
 	}
 }
@@ -1288,7 +1418,7 @@ static void HandleTopLevelExpression() {
 	if (auto FnAST = ParseTopLevelExpr()) {
 		if (auto *FnIR = FnAST->codegen()) {
 			fprintf(stderr, "Read top-level expression:");
-			//FnIR->print(errs());
+			// FnIR->print(errs());
 			fprintf(stderr, "\n");
 
 			// JIT the module containing the anonymous expression, keeping a handle so
@@ -1302,8 +1432,7 @@ static void HandleTopLevelExpression() {
 
 			// Get the symbol's address and cast it to the right type (takes no
 			// arguments, returns a double) so we can call it as a native function.
-			int(*i)() =
-				(int(*)())(intptr_t)cantFail(ExprSymbol.getAddress());
+			int(*i)() = (int(*)())(intptr_t)cantFail(ExprSymbol.getAddress());
 			fprintf(stderr, "Evaluated to %d\n", i());
 
 			// Delete the anonymous expression module from the JIT.
@@ -1315,9 +1444,16 @@ static void HandleTopLevelExpression() {
 		getNextToken();
 	}
 }
-
-
-/// top ::= definition | expression | ';'
+static void HandleVariable() {
+	if (ParseVariableExpr()) {
+		fprintf(stderr, "Parsed a variable\n");
+	}
+	else {
+		// Skip token for error recovery.
+		getNextToken();
+	}
+}
+/// top ::= definition | external | expression | ';'
 static void MainLoop() {
 	while (true) {
 		fprintf(stderr, "ready> ");
@@ -1330,6 +1466,9 @@ static void MainLoop() {
 		case FUNC:
 			HandleFuncDefinition();
 			break;
+			//case VAR:
+			//  HandleVariable();
+			//  break;
 		default:
 			HandleTopLevelExpression();
 			break;
@@ -1375,6 +1514,7 @@ int main() {
 	BinopPrecedence['+'] = 20;
 	BinopPrecedence['-'] = 20;
 	BinopPrecedence['*'] = 40; // highest.
+	BinopPrecedence['/'] = 40; // highest.
 
 							   // Prime the first token.
 	fprintf(stderr, "ready> ");
@@ -1390,6 +1530,26 @@ int main() {
 	// Run the main "interpreter loop" now.
 	MainLoop();
 
+	FILE *fp;
+	//输出词法分析结果
+	fp = fopen("lexer.txt", "w");
+	for (int i = 0; i < cifa.size(); i++) {
+		fprintf(fp, "%s\n", cifa[i].c_str());
+	}
+	fclose(fp);
+	outs() << "Wrote "
+		<< "lexer.txt"
+		<< "\n";
+
+	//输出语法分析结果
+	fp = fopen("parser.txt", "w");
+	for (int i = 0; i < yufa.size(); i++) {
+		fprintf(fp, "%s", yufa[i].c_str());
+	}
+	fclose(fp);
+	outs() << "Wrote "
+		<< "parser.txt"
+		<< "\n";
 	// Print out all of the generated code.
 	// TheModule->print(errs(), nullptr);
 
@@ -1424,7 +1584,7 @@ int main() {
 
 	TheModule->setDataLayout(TheTargetMachine->createDataLayout());
 
-	auto Filename = "output.o";
+	auto Filename = "out.o";
 	std::error_code EC;
 	raw_fd_ostream dest(Filename, EC, sys::fs::F_None);
 
